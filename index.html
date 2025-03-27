@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Barbell Weight Calculator</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        input[type="number"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 100px;
+            margin-right: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #results {
+            margin-top: 25px;
+            text-align: left;
+            padding-left: 20px; /* Indent results slightly */
+        }
+
+        #error-message {
+            color: red;
+            margin-top: 15px;
+            font-weight: bold;
+            min-height: 1.2em; /* Prevent layout shift */
+        }
+
+        /* Barbell Graphics */
+        #barbell-graphic {
+            margin-top: 30px;
+            height: 100px; /* Adjust height based on largest plate height + margin */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .barbell-sleeve {
+            background-color: #a0a0a0; /* Silver/grey sleeve */
+            height: 25px; /* Diameter of the sleeve */
+            width: 250px; /* Length of the visible sleeve area */
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            flex-direction: row-reverse; /* Plates load from outside in */
+            position: relative;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.3);
+        }
+
+        .barbell-collar {
+            background-color: #555; /* Darker collar */
+            height: 35px; /* Slightly larger diameter than sleeve */
+            width: 15px;
+            border-radius: 3px;
+            position: absolute;
+            right: 100%; /* Position just before the sleeve starts */
+            margin-right: 2px; /* Small gap */
+            box-shadow: 0 0 3px rgba(0,0,0,0.5);
+        }
+
+        .plate {
+            /* border-radius: 50%; /* REMOVED - Was making them oval */
+            border-radius: 3px; /* CHANGED - Use slight radius for rectangles */
+            margin: 0 2px; /* Small gap between plates */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.8em; /* Slightly adjusted size for readability */
+            box-shadow: 1px 1px 4px rgba(0,0,0,0.4);
+            border: 1px solid rgba(0,0,0,0.2);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5); /* Improve text readability */
+        }
+
+        /* Plate specific styles (approximate standard colors/sizes) */
+        /* Height represents vertical size, Width represents thickness */
+        .plate-45 { background-color: #cc0000; height: 90px; width: 20px; } /* Red */
+        .plate-25 { background-color: #008000; height: 75px; width: 18px; } /* Green */
+        .plate-10 { background-color: #333333; height: 60px; width: 15px; color:#eee} /* Black */
+        .plate-5  { background-color: #555555; height: 50px; width: 10px; } /* Grey/Black */
+        .plate-2-5{ background-color: #c0c0c0; height: 40px; width: 8px; color:#333 } /* Silver */
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Barbell Weight Calculator</h1>
+
+        <div>
+            <label for="desired-weight">Desired Total Weight (lbs):</label>
+            <input type="number" id="desired-weight" name="desired-weight" min="45" step="5" placeholder="e.g., 135">
+            <button onclick="calculateAndDisplay()">Calculate</button>
+        </div>
+
+        <div id="error-message"></div>
+
+        <div id="results">
+            <!-- Results will be populated here -->
+        </div>
+
+        <div id="barbell-graphic">
+            <!-- Barbell graphic will be drawn here -->
+             <div class="barbell-sleeve">
+                <div class="barbell-collar"></div>
+                <!-- Plates will be added here by Javascript -->
+            </div>
+        </div>
+         <p style="font-size: 0.8em; color: #666; margin-top: 15px;">(Showing plates for one side only. Barbell weighs 45 lbs.)</p>
+    </div>
+
+    <script>
+        const BARBELL_WEIGHT = 45;
+        const AVAILABLE_PLATES = [45, 25, 10, 5, 2.5]; // Heaviest to lightest
+
+        const resultsDiv = document.getElementById('results');
+        const errorDiv = document.getElementById('error-message');
+        const graphicDiv = document.getElementById('barbell-graphic');
+        const weightInput = document.getElementById('desired-weight');
+
+        // Allow pressing Enter in the input field
+        weightInput.addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Prevent form submission if it were in a form
+                calculateAndDisplay();
+            }
+        });
+
+        function calculateAndDisplay() {
+            // --- Clear previous results and errors ---
+            resultsDiv.innerHTML = '';
+            errorDiv.textContent = '';
+            const sleeve = graphicDiv.querySelector('.barbell-sleeve');
+            if (sleeve) {
+                 sleeve.querySelectorAll('.plate').forEach(plate => plate.remove());
+            } else {
+                 graphicDiv.innerHTML = `
+                    <div class="barbell-sleeve">
+                        <div class="barbell-collar"></div>
+                    </div>`;
+            }
+
+            // --- Get and Validate Input ---
+            const desiredWeight = parseFloat(weightInput.value);
+
+            if (isNaN(desiredWeight)) {
+                errorDiv.textContent = 'Please enter a valid number.';
+                return;
+            }
+
+            if (desiredWeight < BARBELL_WEIGHT) {
+                errorDiv.textContent = `Weight must be at least ${BARBELL_WEIGHT} lbs (the barbell weight).`;
+                return;
+            }
+
+            const weightToAddTotal = desiredWeight - BARBELL_WEIGHT;
+
+            if (weightToAddTotal % (2.5 * 2) !== 0) {
+                 errorDiv.textContent = `Weight must be achievable in 5 lb increments above the ${BARBELL_WEIGHT} lb bar (e.g., ${BARBELL_WEIGHT+5}, ${BARBELL_WEIGHT+10}...).`;
+                return;
+            }
+
+            if (desiredWeight === BARBELL_WEIGHT) {
+                resultsDiv.innerHTML = '<p>Just the 45 lb barbell is needed.</p>';
+                 const currentSleeve = graphicDiv.querySelector('.barbell-sleeve');
+                 if (currentSleeve) {
+                      currentSleeve.querySelectorAll('.plate').forEach(plate => plate.remove());
+                 }
+                return;
+            }
+
+            // --- Calculate Plates Per Side ---
+            let weightPerSide = weightToAddTotal / 2;
+            let remainingWeight = weightPerSide;
+            const plateCounts = {};
+
+            AVAILABLE_PLATES.forEach(plateWeight => {
+                if (remainingWeight >= plateWeight) {
+                    const count = Math.floor(remainingWeight / plateWeight);
+                    plateCounts[plateWeight] = count;
+                    remainingWeight -= count * plateWeight;
+                    remainingWeight = parseFloat(remainingWeight.toFixed(2));
+                } else {
+                    plateCounts[plateWeight] = 0;
+                }
+            });
+
+             // --- Display Numerical Results ---
+            let resultsHTML = '<h4>Plates needed per side:</h4><ul>';
+            let platesFound = false;
+            AVAILABLE_PLATES.forEach(plateWeight => {
+                 const count = plateCounts[plateWeight] || 0;
+                 if (count > 0) {
+                    resultsHTML += `<li>${count} x ${plateWeight} lb</li>`;
+                    platesFound = true;
+                 }
+            });
+             if (!platesFound && desiredWeight > BARBELL_WEIGHT) {
+                  resultsHTML += '<li>Error calculating plates.</li>';
+             } else if (!platesFound && desiredWeight === BARBELL_WEIGHT) {
+                  // Already handled the display text for this case
+             }
+
+            resultsHTML += '</ul>';
+            resultsDiv.innerHTML = resultsHTML;
+
+            // --- Draw Graphical Representation ---
+            const currentSleeve = graphicDiv.querySelector('.barbell-sleeve');
+             if (!currentSleeve) {
+                 console.error("Sleeve element not found for drawing.");
+                 return;
+             }
+
+            AVAILABLE_PLATES.forEach(plateWeight => {
+                const count = plateCounts[plateWeight] || 0;
+                const plateLabel = plateWeight.toString().replace('.', '-');
+                const plateClass = `plate-${plateLabel}`;
+
+                for (let i = 0; i < count; i++) {
+                    const plateDiv = document.createElement('div');
+                    plateDiv.classList.add('plate', plateClass);
+                    // ADDED/MODIFIED: Add text inside the plate
+                    plateDiv.textContent = plateWeight;
+                    currentSleeve.appendChild(plateDiv);
+                }
+            });
+        }
+
+        // Optional: You could set an initial value and calculate on load
+        // weightInput.value = 135;
+        // calculateAndDisplay();
+    </script>
+
+</body>
+</html>
